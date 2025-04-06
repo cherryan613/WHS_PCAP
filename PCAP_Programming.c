@@ -32,9 +32,10 @@ struct ipheader {
 struct tcpheader {
     u_short tcp_sport; // Source Port
     u_short tcp_dport; // Destination Port
+    u_char  data_offset_reserved; // Data Offset + Reserved. TCP Header len.
 };
 
-/*  */
+
 void got_packet(u_char* args, const struct pcap_pkthdr* header,
     const u_char* packet)
 {
@@ -72,8 +73,9 @@ void got_packet(u_char* args, const struct pcap_pkthdr* header,
 
             /* Message 출력을 위한 코드 */
             
-            // tcp header 길이. tcp header의 12번째 바이트(4)
-            int tcp_header_len = ((packet[sizeof(struct ethheader) + ip_header_len + 12]) >> 4) * 4;
+            // tcp header 길이. tcp_data_offset의 상위 4비트
+            int tcp_offset = (tcp->tcp_data_offset >> 4); // 상위 4비트만 사용
+            int tcp_header_len = tcp_offset * 4; // TCP 헤더의 길이는 4바이트 단위
 
             // 헤더 길이(Ethernet Header + IP Header + TCP Header)
             int total_headers_size = sizeof(struct ethheader) + ip_header_len + tcp_header_len;
@@ -86,10 +88,13 @@ void got_packet(u_char* args, const struct pcap_pkthdr* header,
             if (message_len > 0) { // message가 존재할 때
                 // 메시지는 전체 헤더 길이 이후부터 시작됨
                 const u_char* message = packet + total_headers_size;
-                printf("\n*** Application Data (%d bytes) ***\n", 64);
+                int print_len = message_len < 64 ? message_len : 64; // 출력할 길이 결정. 기본은 64byte, 만약 64byte보다 작으면 message_len만큼만 출력
+
+
+                printf("\n*** Application Data (%d bytes) ***\n", print_len);
 
                 // 16진수로 64byte만 출력
-                for (int i = 0; i < 64; i++) {
+                for (int i = 0; i < print_len; i++) {
                     printf("%02x ", message[i]); // Hex
                     // 16바이트마다 줄바꿈
                     if ((i + 1) % 16 == 0)
